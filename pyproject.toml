@@ -1,0 +1,28 @@
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+name = "ai-service"
+version = "0.1.0"
+description = "알러지 체크 및 AI 프롬프트 처리용 서비스"
+authors = [" <elec1001@gmail.com>"]
+license = "MIT"
+
+[tool.poetry.scripts]
+start = "uvicorn main:app --host 0.0.0.0 --port 9008 --reload"
+
+
+[tool.poetry.dependencies]
+python = "^3.10"
+fastapi = "^0.95.0"
+uvicorn = {extras = ["standard"], version = "^0.22.0"}
+mysql-connector-python = "^8.0"
+python-dotenv = "^1.0.0"
+openai = "^0.27.0"
+
+[tool.poetry.dev-dependencies]
+# 테스트나 린팅 도구를 추가하고 싶다면 여기에 선언
+pytest = "^7.0"
+black = "^23.1.0"
+

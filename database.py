@@ -1,0 +1,23 @@
+# ai-service/database.py
+import os
+from dotenv import load_dotenv
+from mysql.connector import pooling
+
+load_dotenv()  # .env 읽어오기
+
+dbconfig = {
+    "host":     os.getenv("DB_HOST"),
+    "port":     int(os.getenv("DB_PORT", 3306)),
+    "user":     os.getenv("DB_USER"),
+    "password": os.getenv("DB_PASS"),
+    "database": os.getenv("DB_NAME"),
+}
+# 커넥션 풀 생성
+pool = pooling.MySQLConnectionPool(
+    pool_name    = "ai_pool",
+    pool_size    = 5,
+    **dbconfig
+)
+
+def get_connection():
+    return pool.get_connection()
