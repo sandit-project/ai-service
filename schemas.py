@@ -1,12 +1,14 @@
 # ai-service/schemas.py
-from typing import List
+from typing import List, Optional
 from pydantic import BaseModel
 
 class AllergyList(BaseModel):
     allergy: List[str]
 
 class AllergyCheckReq(BaseModel):
-    user_id: int
+    user_uid: Optional[int] = None
+    social_uid: Optional[int] = None
+    allergy: List[str] = []
     ingredients: List[str]
 
 class AllergyCheckRes(BaseModel):
