@@ -1,10 +1,14 @@
 # ai-service/main.py
 import os
 import json
+from fastapi.responses import JSONResponse
 import openai
 from fastapi import FastAPI, HTTPException
 import database
 from schemas import AllergyList, AllergyCheckReq, AllergyCheckRes
+
+print("==== [디버깅용 모델] ====")
+print(AllergyCheckReq.model_fields)
 
 # 환경변수 로드 (이미 database.py에서 dotenv 로드하므로 중복 불필요)
 # 최신 openai 1.x 방식
@@ -50,6 +54,10 @@ async def check_allergy(req: AllergyCheckReq):
     """
     OpenAI API를 통해 사용자의 알러지와 선택된 재료를 검사하여 위험 여부를 반환합니다.
     """
+    print("==== [req 내용 출력] ====")
+    print(req)
+    
+    
     # 1) DB에서 사용자의 알러지 목록 조회(user_uid 또는 social_uid)
     user_allergies = []
     conn = database.get_connection()
@@ -110,7 +118,7 @@ async def check_allergy(req: AllergyCheckReq):
             "detail": data.get("detail", "")
         }
         print("AI 응답:", response_json)
-        return response_json
+        return JSONResponse(content=response_json, media_type="application/json")
     
         
         
