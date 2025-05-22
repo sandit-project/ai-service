@@ -6,11 +6,11 @@ from mysql.connector import pooling
 load_dotenv()  # .env 읽어오기
 
 dbconfig = {
-    "host":     os.getenv("DB_HOST"),
-    "port":     int(os.getenv("DB_PORT", 3306)),
-    "user":     os.getenv("DB_USER"),
-    "password": os.getenv("DB_PASS"),
-    "database": os.getenv("DB_NAME"),
+    "host":     os.getenv("SPRING_DATASOURCE_URL") or os.getenv("DB_HOST"),
+    "port":     int(os.getenv("SPRING_DATASOURCE_PORT")) or int(os.getenv("DB_PORT", 3306)),
+    "user":     os.getenv("SPRING_DATASOURCE_USER") or os.getenv("DB_USER"),
+    "password": os.getenv("SPRING_DATASOURCE_PASSWORD") or os.getenv("DB_PASS"),
+    "database": os.getenv("DB_NAME", "allergy"),
     "charset":  os.getenv("DB_CHARSET", "utf8mb4"),
     "autocommit": True,
 }
