@@ -25,7 +25,7 @@ jobs:
 
       - name: Tag Docker image
         run: |
-          docker tag ai-service:latest ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.ap-northeast-2.amazonaws.com/ai-service:latest
+          docker tag ai-service:latest ${{ secrets.DOCKER_HUB_USERNAME }}/ai-service:latest
 
       - name: Push Docker image to Docker Hub
         run: |
