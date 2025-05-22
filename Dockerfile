@@ -1,18 +1,16 @@
-# 베이스 이미지
-FROM python:3.11-slim
+FROM python:3.10-slim
 
-# 작업 디렉토리
 WORKDIR /app
 
-# pyproject.toml 복사 & 의존성 설치
-COPY pyproject.toml .
-RUN pip install --no-cache-dir uvicorn fastapi && pip install --no-cache-dir .
+# poetry 설치
+RUN pip install --no-cache-dir poetry
 
-# 전체 소스 복사
+# 소스 전체 복사
 COPY . .
 
-# 컨테이너 포트 열기 (FastAPI 기본)
-EXPOSE 9008
+# 의존성 설치 (가상환경 안쓰고 시스템에 바로 설치)
+RUN poetry config virtualenvs.create false \
+ && poetry install --no-interaction --no-ansi
 
-# FastAPI 실행 명령 (app=main.py 안의 FastAPI 인스턴스)
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "9008"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "9008", "--reload"]
+
