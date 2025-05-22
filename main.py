@@ -3,12 +3,13 @@ import os
 import json
 from fastapi.responses import JSONResponse
 import openai
-from fastapi import FastAPI, HTTPException
+from fastapi import Body, FastAPI, HTTPException
 import database
-from schemas import AllergyList, AllergyCheckReq, AllergyCheckRes
+from schemas import AllergyList, AllergyCheckReq, AllergyCheckRes, SaveAllergyReq
 
 print("==== [디버깅용 모델] ====")
 print(AllergyCheckReq.model_fields)
+print("==== [디버깅용 모델] 끝 ====")
 
 # 환경변수 로드 (이미 database.py에서 dotenv 로드하므로 중복 불필요)
 # 최신 openai 1.x 방식
@@ -48,6 +49,34 @@ async def get_social_allergies(social_uid: int):
     # 기본 샘플: socials 유저는 일단 알러지 정보 없다고 응답
     return AllergyList(allergy=[])
 
+# ---- 유저 알러지 저장 ----
+@app.post("/api/ai/user-allergy")
+async def save_user_allergy(data: SaveAllergyReq = Body(...)):
+    """
+    회원의 알러지 정보 DB에 저장
+    """
+    conn = database.get_connection()
+    cursor = conn.cursor()
+    print("==== [SaveReq 내용 출력] ====")
+    print(data.user_uid)
+    print(data.allergies)
+    print("==== [SaveReq 내용 출력 끝] ====")
+
+    try:
+        for allergy in data.allergies:
+            cursor.execute(
+                "INSERT INTO user_allergy (user_uid, allergy) VALUES (%s, %s)",
+                (data.user_uid, allergy,)
+            )
+        conn.commit()
+        return {"success": True}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=f"DB 저장 오류: {e}")
+    finally:
+        cursor.close()
+        conn.close()
+        
 # ---- 알러지 검사 ----
 @app.post("/api/ai/check-allergy", response_model=AllergyCheckRes)
 async def check_allergy(req: AllergyCheckReq):
@@ -56,6 +85,7 @@ async def check_allergy(req: AllergyCheckReq):
     """
     print("==== [req 내용 출력] ====")
     print(req)
+    print("==== [req 내용 출력] 끝 ====")
     
     
     # 1) DB에서 사용자의 알러지 목록 조회(user_uid 또는 social_uid)
@@ -82,12 +112,18 @@ async def check_allergy(req: AllergyCheckReq):
 
     # 2) OpenAI 프롬프트 작성
     prompt = (
-        f"당신은 알러지 검사 어시스턴트입니다."
-        f"사용자 알러지 목록: {', '.join(user_allergies) or '없음'}. "
-        f"선택된 재료: {', '.join(clean_ingredients)}. "
-        "위험한 재료가 있으면 risk:true, cause에는 위험 재료, detail은 한글설명. "
-        "JSON만 반환: {\"risk\": bool, \"cause\": [string], \"detail\": string}"
-    )
+        "당신은 엄격한 식품 알러지 검사 어시스턴트입니다.\n"
+        "아래 원칙을 꼭 지키세요.\n"
+        "- [1] 재료의 대표적인 제조 방법만 기준으로 판단하세요.\n"
+        "- [2] '치즈', '모짜렐라', '체다', '파마산' 등 대부분의 치즈는 '우유(유제품)' 알러지만 위험하며, '계란' 알러지와는 관련이 없습니다.\n"
+        "- [3] '에그마요', '스크램블에그', '삶은달걀', '오믈렛' 등은 계란 알러지에 위험합니다.\n"
+        "- [4] 해산물 중 '오징어', '문어', '생선'은 갑각류 알러지와 무관합니다. '새우', '게', '랍스터'만 갑각류 알러지에 위험합니다.\n"
+        "- [5] 제조 과정이 명확하지 않으면 '위험' 판정을 내리지 마세요. 아는 것만 정확히 판단.\n"
+        "- [6] 실제 위험이 있는 재료만 cause에 포함하세요. 추측/과도한 경고 금지.\n"
+        "- [7] 결과는 반드시 아래 JSON 포맷만 반환하세요: {\"risk\": bool, \"cause\": [string], \"detail\": string}\n"
+        f"사용자 알러지 목록: {', '.join(user_allergies) or '없음'}\n"
+        f"선택된 재료: {', '.join(clean_ingredients)}\n"
+        )
     print("보내는 prompt:", prompt)
     print("ingredients:", clean_ingredients)
     print("user_allergies:", user_allergies)

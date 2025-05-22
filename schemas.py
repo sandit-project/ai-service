@@ -2,6 +2,11 @@
 from typing import List, Optional
 from pydantic import BaseModel, Field
 
+class SaveAllergyReq(BaseModel):
+    user_uid: Optional[int] = None
+    allergies: List[str]
+
+
 class AllergyList(BaseModel):
     allergy: List[str]
 
