@@ -6,7 +6,7 @@ build-backend = "poetry.core.masonry.api"
 name = "ai-service"
 version = "0.1.0"
 description = "알러지 체크 및 AI 프롬프트 처리용 서비스"
-authors = [" <elec1001@gmail.com>"]
+authors = ["elec1001 <elec1001@gmail.com>"]
 license = "MIT"
 
 [tool.poetry.scripts]
