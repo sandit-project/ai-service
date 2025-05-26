@@ -44,7 +44,7 @@ jobs:
             --from-literal=SPRING_DATASOURCE_USER=${{ secrets.SPRING_DATASOURCE_USER }} \
             --from-literal=SPRING_DATASOURCE_PASSWORD=${{ secrets.SPRING_DATASOURCE_PASSWORD }} \
             --from-literal=OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }} \
-            --dry-run=client -o yaml | kubectl apply -f -
+            --dry-run=client -o yaml | kubectl apply --validate=false -f -
 
       - name: Log in to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v2
