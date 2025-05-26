@@ -1,10 +1,15 @@
 # ai-service/main.py
 import os
 import json
+from fastapi.responses import JSONResponse
 import openai
-from fastapi import FastAPI, HTTPException
+from fastapi import Body, FastAPI, HTTPException
 import database
-from schemas import AllergyList, AllergyCheckReq, AllergyCheckRes
+from schemas import AllergyList, AllergyCheckReq, AllergyCheckRes, SaveAllergyReq
+
+print("==== [디버깅용 모델] ====")
+print(AllergyCheckReq.model_fields)
+print("==== [디버깅용 모델] 끝 ====")
 
 # 환경변수 로드 (이미 database.py에서 dotenv 로드하므로 중복 불필요)
 # 최신 openai 1.x 방식
@@ -44,12 +49,45 @@ async def get_social_allergies(social_uid: int):
     # 기본 샘플: socials 유저는 일단 알러지 정보 없다고 응답
     return AllergyList(allergy=[])
 
+# ---- 유저 알러지 저장 ----
+@app.post("/api/ai/user-allergy")
+async def save_user_allergy(data: SaveAllergyReq = Body(...)):
+    """
+    회원의 알러지 정보 DB에 저장
+    """
+    conn = database.get_connection()
+    cursor = conn.cursor()
+    print("==== [SaveReq 내용 출력] ====")
+    print(data.user_uid)
+    print(data.allergies)
+    print("==== [SaveReq 내용 출력 끝] ====")
+
+    try:
+        for allergy in data.allergies:
+            cursor.execute(
+                "INSERT INTO user_allergy (user_uid, allergy) VALUES (%s, %s)",
+                (data.user_uid, allergy,)
+            )
+        conn.commit()
+        return {"success": True}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=f"DB 저장 오류: {e}")
+    finally:
+        cursor.close()
+        conn.close()
+        
 # ---- 알러지 검사 ----
 @app.post("/api/ai/check-allergy", response_model=AllergyCheckRes)
 async def check_allergy(req: AllergyCheckReq):
     """
     OpenAI API를 통해 사용자의 알러지와 선택된 재료를 검사하여 위험 여부를 반환합니다.
     """
+    print("==== [req 내용 출력] ====")
+    print(req)
+    print("==== [req 내용 출력] 끝 ====")
+    
+    
     # 1) DB에서 사용자의 알러지 목록 조회(user_uid 또는 social_uid)
     user_allergies = []
     conn = database.get_connection()
@@ -73,20 +111,43 @@ async def check_allergy(req: AllergyCheckReq):
         raise HTTPException(status_code=400, detail="선택된 재료가 없습니다.")
 
     # 2) OpenAI 프롬프트 작성
-    prompt = (
-        f"당신은 알러지 검사 어시스턴트입니다."
-        f"사용자 알러지 목록: {', '.join(user_allergies) or '없음'}. "
-        f"선택된 재료: {', '.join(clean_ingredients)}. "
-        "위험한 재료가 있으면 risk:true, cause에는 위험 재료, detail은 한글설명. "
-        "JSON만 반환: {\"risk\": bool, \"cause\": [string], \"detail\": string}"
-    )
+    prompt = f"""
+            당신은 엄격한 식품 알러지 검사 어시스턴트입니다.
+
+            [알러지 검사 규칙]
+            - 반드시 [선택된 재료] 리스트 중에서만 위험 cause를 추출하세요.
+            - 사용자의 알러지와 직접적으로 관련된 재료만 cause에 포함하세요.
+            - 사용자의 알러지와 무관하거나, [선택된 재료]에 없는 재료는 절대 cause에 포함하지 마세요.
+            - 베이컨, 햄, 치킨, 소고기, 양상추, 토마토, 오이, 피망 등 **고기류, 채소, 소스**는 계란(난류) 알러지와 무관합니다. 그러므로 cause에 포함하지 마세요.
+            - **특히, 모짜렐라 치즈, 체다 치즈, 파마산 치즈 등 치즈류는 오직 우유(유제품) 알러지에만 위험 cause입니다. 난류(계란) 알러지에는 절대 cause에 포함하지 마세요.**
+            - **만약 cause가 빈 배열([])이면 risk는 반드시 false로 답하세요.**
+            - 예시1: 사용자 알러지: ['난류'], 선택된 재료: ['위트', '모짜렐라 치즈', '토마토', '베이컨']
+                → cause는 [] (빈 리스트, 위험 없음)
+            - 예시2: 사용자 알러지: ['난류'], 선택된 재료: ['스크램블에그', '양상추']
+                → cause는 ['스크램블에그']
+            - 예시3: 사용자 알러지: ['우유'], 선택된 재료: ['모짜렐라 치즈', '토마토']
+                → cause는 ['모짜렐라 치즈']
+            - 결과는 반드시 아래 JSON 포맷만 반환하세요:
+            {{"risk": bool, "cause": [string], "detail": string}}
+            - JSON 외의 설명은 절대 포함하지 마세요.
+
+            [사용자 알러지]
+            {user_allergies}
+
+            [선택된 재료]
+            {clean_ingredients}
+            """
+
+
+
+    # 3) OpenAI API 호출
+    # 최신 1.x 방식으로 호출
     print("보내는 prompt:", prompt)
     print("ingredients:", clean_ingredients)
     print("user_allergies:", user_allergies)
 
-
     try:
-        # openai 최신 1.x 방식으로 호출
+    
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             store=True, 
@@ -110,7 +171,7 @@ async def check_allergy(req: AllergyCheckReq):
             "detail": data.get("detail", "")
         }
         print("AI 응답:", response_json)
-        return response_json
+        return JSONResponse(content=response_json, media_type="application/json")
     
         
         
