@@ -1,2 +1,11 @@
 # 민감 정보 파일
 .env
+
+# 테스트 관련 파일
+/tests/** 
+/htmlcov/**
+.coverage
+/.pytest_cache
+
+# Python 관련   파일
+*.pyc               
