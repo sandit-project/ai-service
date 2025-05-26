@@ -53,20 +53,18 @@ async def get_social_allergies(social_uid: int):
 @app.post("/api/ai/user-allergy")
 async def save_user_allergy(data: SaveAllergyReq = Body(...)):
     """
-    회원의 알러지 정보 DB에 저장
+    회원(일반/소셜)의 알러지 정보 DB에 저장
     """
+    if not data.user_uid and not data.social_uid:
+        raise HTTPException(status_code=400, detail="user_uid 또는 social_uid가 필요합니다.")
     conn = database.get_connection()
     cursor = conn.cursor()
-    print("==== [SaveReq 내용 출력] ====")
-    print(data.user_uid)
-    print(data.allergies)
-    print("==== [SaveReq 내용 출력 끝] ====")
-
+    
     try:
         for allergy in data.allergies:
             cursor.execute(
-                "INSERT INTO user_allergy (user_uid, allergy) VALUES (%s, %s)",
-                (data.user_uid, allergy,)
+                "INSERT INTO user_allergy (user_uid, social_uid, allergy) VALUES (%s, %s, %s) ",
+                (data.user_uid, data.social_uid, allergy,)
             )
         conn.commit()
         return {"success": True}
@@ -76,6 +74,38 @@ async def save_user_allergy(data: SaveAllergyReq = Body(...)):
     finally:
         cursor.close()
         conn.close()
+
+# --- "알러지 정보 수정" 엔드포인트 추가 (일반/소셜 통합) --- #
+@app.put("/api/ai/user-allergy")
+async def update_user_allergy(data: SaveAllergyReq = Body(...)):
+    """
+    회원(일반/소셜) 알러지 정보를 수정(덮어쓰기: 기존 데이터 삭제 후 새로 저장)
+    """
+    if not data.user_uid and not data.social_uid:
+        raise HTTPException(status_code=400, detail="user_uid 또는 social_uid가 필요합니다.")
+
+    conn = database.get_connection()
+    cursor = conn.cursor()
+    try:
+        # 기존 알러지 모두 삭제
+        if data.user_uid:
+            cursor.execute("DELETE FROM user_allergy WHERE user_uid=%s", (data.user_uid,))
+        elif data.social_uid:
+            cursor.execute("DELETE FROM user_allergy WHERE social_uid=%s", (data.social_uid,))
+        # 새로 입력
+        for allergy in data.allergies:
+            cursor.execute(
+                "INSERT INTO user_allergy (user_uid, social_uid, allergy) VALUES (%s, %s, %s)",
+                (data.user_uid, data.social_uid, allergy)
+            )
+        conn.commit()
+        return {"success": True}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=f"DB 저장 오류: {e}")
+    finally:
+        cursor.close()
+        conn.close()    
         
 # ---- 알러지 검사 ----
 @app.post("/api/ai/check-allergy", response_model=AllergyCheckRes)
@@ -97,9 +127,9 @@ async def check_allergy(req: AllergyCheckReq):
             cursor.execute("SELECT allergy FROM user_allergy WHERE user_uid = %s", (req.user_uid,))
             user_allergies = [r["allergy"] for r in cursor.fetchall() or []]
         elif req.social_uid is not None:
-            # social_uid 별도 테이블이 있다면 여기에 구현
-            # 기본 샘플: socials 유저는 프론트에서 받은 allergy 사용
-            user_allergies = req.allergy or []
+            cursor.execute("SELECT allergy FROM user_allergy WHERE social_uid = %s", (req.social_uid,))
+            user_allergies = [r["allergy"] for r in cursor.fetchall() or []]
+            
         else:
             raise HTTPException(status_code=400, detail="user_uid 또는 social_uid가 필요합니다.")
     finally:
