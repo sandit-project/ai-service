@@ -29,15 +29,6 @@ jobs:
         run: |
           aws eks --region ${{ secrets.AWS_REGION }} update-kubeconfig --name sandit-cluster
 
-        # EKS 클러스터 접근을 위한 인증 토큰 생성 (15분짜리 임시 토큰)
-        # GitHub Actions 환경에서는 자동으로 토큰 갱신이 안 되기 때문에,
-        # kubectl apply 전에 수동으로 한 번 토큰 생성해서 인증 상태 확인해 줌
-        # 이걸 안 넣으면 "failed to download openapi" 같은 인증 에러 발생 가능성 있음
-
-      - name: Authenticate to EKS (generate token)
-        run: |
-          aws eks get-token --region ${{ secrets.AWS_REGION }} --cluster-name sandit-cluster > /dev/null
-
       - name: Create Kubernetes Secrets from GitHub Secrets
         run: |
           kubectl create secret generic ai-service-secrets \
