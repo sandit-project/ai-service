@@ -51,3 +51,7 @@ jobs:
       - name: Push Docker image to Amazon ECR
         run: |
           docker push ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/ai-service:latest
+
+      - name: Deploy to Kubernetes
+        run: |
+          kubectl apply -f k8s/

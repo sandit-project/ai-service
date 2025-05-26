@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-service
+spec:
+  selector:
+    matchLabels:
+      app: ai-service
+  template:
+    metadata:
+      labels:
+        app: ai-service
+    spec:
+      nodeSelector:
+        role: websocket
+      containers:
+        - name: ai-service
+          image: 448049828702.dkr.ecr.ap-northeast-2.amazonaws.com/ai-service:latest
+          imagePullPolicy: Always
+          lifecycle:
+            preStop:
+              exec:
+                command: [ "sh", "-c", "sleep 5" ]
+          resources:
+            requests:
+              cpu: "300m"
+              memory: "500Mi"
+            limits:
+              cpu: "600m"
+              memory: "1024Mi"
+          ports:
+            - containerPort: 9008
+          env:
+            - name: SPRING_DATASOURCE_URL
+              value: "10.0.1.52"
+            - name: SPRING_DATASOURCE_PORT
+              value: "3306"
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: ai-service-secrets
+                  key: OPENAI_API_KEY
+            - name: SPRING_DATASOURCE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: ai-service-secrets
+                  key: SPRING_DATASOURCE_USER
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ai-service-secrets
+                  key: SPRING_DATASOURCE_PASSWORD
+
