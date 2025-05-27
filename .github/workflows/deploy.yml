@@ -52,11 +52,12 @@ jobs:
         run: |
           docker push ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/ai-service:latest
 
-      #  환경변수 치환을 위한 배포 파일 변환
+      # 환경변수 치환을 위한 배포 파일 변환
       - name: Substitute environment variables in deployment file
         run: |
-          envsubst < k8s/ai-deployment.yml > k8s/ai-deployment.rendered.yml
+          envsubst < k8s/deployment.yml > k8s/deployment.rendered.yml
 
       - name: Deploy to Kubernetes
         run: |
-          kubectl apply -f k8s/ai-deployment.rendered.yml
+          kubectl apply -f k8s/deployment.rendered.yml
+          kubectl apply -f k8s/service.yml
