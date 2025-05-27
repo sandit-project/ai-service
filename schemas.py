@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 
 class SaveAllergyReq(BaseModel):
     user_uid: Optional[int] = None
+    social_uid: Optional[int] = None
     allergies: List[str]
 
 
