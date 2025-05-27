@@ -40,6 +40,14 @@ jobs:
         working-directory: sandit-deployment
         run: terraform init -input=false
 
+      - name: Terraform plan
+        working-directory: sandit-deployment
+        run: terraform plan -out=tfplan
+
+      - name: Terraform apply
+        working-directory: sandit-deployment
+        run: terraform apply -auto-approve tfplan
+
       - name: Install kubectl
         uses: azure/setup-kubectl@v3
         with:
