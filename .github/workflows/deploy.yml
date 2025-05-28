@@ -38,15 +38,18 @@ jobs:
       # 이 step은 apply를 수행하지 않고, 기존 backend의 상태를 로드만 함
       - name: Terraform init
         working-directory: sandit-deployment
+        env:
+          TF_TOKEN_app_terraform_io: ${{ secrets.TF_TOKEN_APP_TERRAFORM_IO }}
         run: terraform init -input=false
 
-      - name: Terraform plan
-        working-directory: sandit-deployment
-        run: terraform plan -out=tfplan
+      - name: Load Terraform Outputs via API
+        run: |
+          OUTPUTS_URL=$(curl -s -H "Authorization: Bearer ${{ secrets.TF_TOKEN_APP_TERRAFORM_IO }}" \
+            https://app.terraform.io/api/v2/workspaces/${{ secrets.TERRAFORM_WORKSPACE_ID }}/current-state-version \
+            | jq -r '.data.relationships.outputs.links.related')
 
-      - name: Terraform apply
-        working-directory: sandit-deployment
-        run: terraform apply -auto-approve tfplan
+          curl -s -H "Authorization: Bearer ${{ secrets.TF_TOKEN_APP_TERRAFORM_IO }}" \
+            "$OUTPUTS_URL" | jq -r '.data[] | "\(.attributes.name)=\(.attributes.value)"' >> $GITHUB_ENV
 
       - name: Install kubectl
         uses: azure/setup-kubectl@v3
@@ -56,11 +59,6 @@ jobs:
       - name: Configure kubeconfig for EKS cluster
         run: |
           aws eks --region ${{ secrets.AWS_REGION }} update-kubeconfig --name sandit-cluster
-
-      - name: Extract EC2 IP from Terraform Outputs
-        working-directory: sandit-deployment
-        run: |
-          echo MYSQL_IP=$(terraform output -raw mysql_private_ip | tr -d '\r') >> $GITHUB_ENV
 
       - name: Create Kubernetes Secrets from GitHub Secrets
         run: |
