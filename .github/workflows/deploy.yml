@@ -42,14 +42,18 @@ jobs:
           TF_TOKEN_app_terraform_io: ${{ secrets.TF_TOKEN_APP_TERRAFORM_IO }}
         run: terraform init -input=false
 
-      - name: Load Terraform Outputs via API
-        run: |
-          OUTPUTS_URL=$(curl -s -H "Authorization: Bearer ${{ secrets.TF_TOKEN_APP_TERRAFORM_IO }}" \
-            https://app.terraform.io/api/v2/workspaces/${{ secrets.TERRAFORM_WORKSPACE_ID }}/current-state-version \
-            | jq -r '.data.relationships.outputs.links.related')
+      # Terraform Cloud Outputs를 공식 액션으로 불러오기
+      - name: Fetch Terraform Cloud Outputs
+        id: fetch
+        uses: hashicorp-forge/terraform-cloud-outputs-action@v1
+        with:
+          token: ${{ secrets.TF_TOKEN_APP_TERRAFORM_IO }}
+          organization: "sandit"
+          workspace: "sandit"
 
-          curl -s -H "Authorization: Bearer ${{ secrets.TF_TOKEN_APP_TERRAFORM_IO }}" \
-            "$OUTPUTS_URL" | jq -r '.data[] | "\(.attributes.name)=\(.attributes.value)"' >> $GITHUB_ENV
+      - name: Print loaded Terraform outputs
+        run: |
+          echo "MYSQL_IP=${{ fromJSON(steps.fetch.outputs.workspace-outputs-json).MYSQL_IP }}"
 
       - name: Install kubectl
         uses: azure/setup-kubectl@v3
@@ -66,6 +70,7 @@ jobs:
             --from-literal=SPRING_DATASOURCE_USER=${{ secrets.SPRING_DATASOURCE_USER }} \
             --from-literal=SPRING_DATASOURCE_PASSWORD=${{ secrets.SPRING_DATASOURCE_PASSWORD }} \
             --from-literal=OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }} \
+            --from-literal=AWS_ACCOUNT_ID=${{ secrets.AWS_ACCOUNT_ID }} \
             --dry-run=client -o yaml | kubectl apply --validate=false -f -
 
       - name: Log in to Amazon ECR
@@ -85,6 +90,10 @@ jobs:
 
       # 환경변수 치환을 위한 배포 파일 변환
       - name: Substitute environment variables in deployment file
+        env:
+          MYSQL_IP: ${{ fromJSON(steps.fetch.outputs.workspace-outputs-json).MYSQL_IP }}
+          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
         run: |
           envsubst < k8s/deployment.yml > k8s/deployment.rendered.yml
 
