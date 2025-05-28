@@ -15,7 +15,7 @@ spec:
         role: websocket
       containers:
         - name: ai-service
-          image: 448049828702.dkr.ecr.ap-northeast-2.amazonaws.com/ai-service:latest
+          image: $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/ai-service:latest
           imagePullPolicy: Always
           lifecycle:
             preStop:
@@ -32,7 +32,7 @@ spec:
             - containerPort: 9008
           env:
             - name: SPRING_DATASOURCE_URL
-              value: "jdbc:mysql://${MYSQL_IP}:3306/allergy"
+              value: "jdbc:mysql://$MYSQL_IP:3306/allergy"
             - name: SPRING_DATASOURCE_PORT
               value: "3306"
             - name: OPENAI_API_KEY
