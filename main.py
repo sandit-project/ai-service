@@ -7,10 +7,6 @@ from fastapi import Body, FastAPI, HTTPException
 import database
 from schemas import AllergyList, AllergyCheckReq, AllergyCheckRes, SaveAllergyReq
 
-print("==== [디버깅용 모델] ====")
-print(AllergyCheckReq.model_fields)
-print("==== [디버깅용 모델] 끝 ====")
-
 # 환경변수 로드 (이미 database.py에서 dotenv 로드하므로 중복 불필요)
 # 최신 openai 1.x 방식
 client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
