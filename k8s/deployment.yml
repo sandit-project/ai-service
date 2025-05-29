@@ -32,7 +32,7 @@ spec:
             - containerPort: 9008
           env:
             - name: SPRING_DATASOURCE_URL
-              value: "jdbc:mysql://$MYSQL_IP:3306/allergy"
+              value: "$MYSQL_IP"
             - name: SPRING_DATASOURCE_PORT
               value: "3306"
             - name: OPENAI_API_KEY
