@@ -15,7 +15,6 @@ start = "uvicorn main:app --host 0.0.0.0 --port 9008 --reload"
 
 [tool.poetry.dependencies]
 python = "^3.10"
-pydantic = "^2.0.0"
 fastapi = "^0.95.0"
 uvicorn = {extras = ["standard"], version = "^0.22.0"}
 mysql-connector-python = "^8.0"
