@@ -41,9 +41,24 @@ async def get_user_allergies(user_uid: int):
 # ---- 소셜 유저 알러지 조회 ----
 @app.get("/api/ai/socials/{social_uid}/allergies", response_model=AllergyList)
 async def get_social_allergies(social_uid: int):
-    # 예시: social_uid 기반 테이블이 있다면 여기에 구현
-    # 기본 샘플: socials 유저는 일단 알러지 정보 없다고 응답
-    return AllergyList(allergy=[])
+    """
+    특정 사용자(social_uid)의 알러지 항목 목록을 조회합니다.
+    """
+    conn = database.get_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            "SELECT allergy FROM user_allergy WHERE social_uid = %s ORDER BY created_date",
+            (social_uid,)
+        )
+        rows = cursor.fetchall() or []
+        allergy_names = [row["allergy"] for row in rows]
+        return AllergyList(allergy=allergy_names)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"DB 오류: {e}")
+    finally:
+        cursor.close()
+        conn.close()
 
 # ---- 유저 알러지 저장 ----
 @app.post("/api/ai/user-allergy")
