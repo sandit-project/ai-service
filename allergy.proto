@@ -1,0 +1,17 @@
+// allergy.proto
+syntax = "proto3";
+
+package ai;
+
+service AiService {
+  rpc SendAllergyInfo (SaveAllergyRequest) returns (Empty);
+  rpc UpdateAllergyInfo (SaveAllergyRequest) returns (Empty);
+}
+
+message SaveAllergyRequest {
+  int64 user_uid = 1;
+  int64 social_uid = 2;
+  repeated string allergies = 3;
+}
+
+message Empty {}

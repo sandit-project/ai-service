@@ -9,4 +9,7 @@ spec:
   ports:
     - protocol: TCP
       port: 80
-      targetPort: 9008
+      targetPort: 9008  # FastAPI용 포트
+    - protocol: TCP
+      port: 6008
+      targetPort: 6008  # gRPC용 포트

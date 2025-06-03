@@ -9,3 +9,7 @@
 
 # Python 관련   파일
 *.pyc               
+
+# gRPC generated files
+allergy_pb2.py
+allergy_pb2_grpc.py

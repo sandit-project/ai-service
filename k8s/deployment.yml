@@ -30,6 +30,7 @@ spec:
               memory: "1024Mi"
           ports:
             - containerPort: 9008
+            - containerPort: 6008
           env:
             - name: SPRING_DATASOURCE_URL
               value: "$MYSQL_IP"
