@@ -7,6 +7,13 @@ from fastapi import Body, FastAPI, HTTPException
 import database
 from schemas import AllergyList, AllergyCheckReq, AllergyCheckRes, SaveAllergyReq
 
+# gRPC 관련 import
+from concurrent import futures
+import grpc
+import allergy_pb2
+import allergy_pb2_grpc
+import threading
+
 # 환경변수 로드 (이미 database.py에서 dotenv 로드하므로 중복 불필요)
 # 최신 openai 1.x 방식
 client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -59,64 +66,6 @@ async def get_social_allergies(social_uid: int):
     finally:
         cursor.close()
         conn.close()
-
-# ---- 유저 알러지 저장 ----
-@app.post("/api/ai/user-allergy")
-async def save_user_allergy(data: SaveAllergyReq = Body(...)):
-    """
-    회원(일반/소셜)의 알러지 정보 DB에 저장
-    """
-    if not data.user_uid and not data.social_uid:
-        raise HTTPException(status_code=400, detail="user_uid 또는 social_uid가 필요합니다.")
-    conn = database.get_connection()
-    cursor = conn.cursor()
-    
-    try:
-        for allergy in data.allergies:
-            cursor.execute(
-                "INSERT INTO user_allergy (user_uid, social_uid, allergy) VALUES (%s, %s, %s) ",
-                (data.user_uid, data.social_uid, allergy,)
-            )
-        conn.commit()
-        return {"success": True}
-    except Exception as e:
-        conn.rollback()
-        raise HTTPException(status_code=500, detail=f"DB 저장 오류: {e}")
-    finally:
-        cursor.close()
-        conn.close()
-
-# --- "알러지 정보 수정" 엔드포인트 추가 (일반/소셜 통합) --- #
-@app.put("/api/ai/user-allergy")
-async def update_user_allergy(data: SaveAllergyReq = Body(...)):
-    """
-    회원(일반/소셜) 알러지 정보를 수정(덮어쓰기: 기존 데이터 삭제 후 새로 저장)
-    """
-    if not data.user_uid and not data.social_uid:
-        raise HTTPException(status_code=400, detail="user_uid 또는 social_uid가 필요합니다.")
-
-    conn = database.get_connection()
-    cursor = conn.cursor()
-    try:
-        # 기존 알러지 모두 삭제
-        if data.user_uid:
-            cursor.execute("DELETE FROM user_allergy WHERE user_uid=%s", (data.user_uid,))
-        elif data.social_uid:
-            cursor.execute("DELETE FROM user_allergy WHERE social_uid=%s", (data.social_uid,))
-        # 새로 입력
-        for allergy in data.allergies:
-            cursor.execute(
-                "INSERT INTO user_allergy (user_uid, social_uid, allergy) VALUES (%s, %s, %s)",
-                (data.user_uid, data.social_uid, allergy)
-            )
-        conn.commit()
-        return {"success": True}
-    except Exception as e:
-        conn.rollback()
-        raise HTTPException(status_code=500, detail=f"DB 저장 오류: {e}")
-    finally:
-        cursor.close()
-        conn.close()    
         
 # ---- 알러지 검사 ----
 @app.post("/api/ai/check-allergy", response_model=AllergyCheckRes)
@@ -225,7 +174,91 @@ async def check_allergy(req: AllergyCheckReq):
         traceback.print_exc()
         print("=============================================")
         raise HTTPException(status_code=500, detail=f"AI 호출 실패: {e}")
+        
+# gRPC 함수
+class AiServiceServicer(allergy_pb2_grpc.AiServiceServicer):
+    def SendAllergyInfo(self, request, context):
+        conn = database.get_connection()
+        cursor = conn.cursor()
+        try:
+            if request.user_uid:
+                for allergy in request.allergies:
+                    cursor.execute(
+                        "INSERT INTO user_allergy (user_uid, allergy) VALUES (%s, %s)",
+                        (request.user_uid, allergy)
+                    )
+            elif request.social_uid:
+                for allergy in request.allergies:
+                    cursor.execute(
+                        "INSERT INTO user_allergy (social_uid, allergy) VALUES (%s, %s)",
+                        (request.social_uid, allergy)
+                    )
+            else:
+                context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
+                context.set_details("user_uid 또는 social_uid 중 하나는 반드시 제공되어야 합니다.")
+                return allergy_pb2.Empty()
             
+            conn.commit()
+            return allergy_pb2.Empty()
+        except Exception as e:
+            conn.rollback()
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(f"DB 저장 오류: {e}")
+            return allergy_pb2.Empty()
+        finally:
+            cursor.close()
+            conn.close()
 
+    def UpdateAllergyInfo(self, request, context):
+        conn = database.get_connection()
+        cursor = conn.cursor()
+        try:
+            if request.user_uid:
+                cursor.execute("DELETE FROM user_allergy WHERE user_uid=%s", (request.user_uid,))
 
+                for allergy in request.allergies:
+                    cursor.execute(
+                        "INSERT INTO user_allergy (user_uid, allergy) VALUES (%s, %s)",
+                        (request.user_uid, allergy)
+                    )
+            elif request.social_uid:
+                cursor.execute("DELETE FROM user_allergy WHERE social_uid=%s", (request.social_uid,))
+
+                for allergy in request.allergies:
+                    cursor.execute(
+                        "INSERT INTO user_allergy (social_uid, allergy) VALUES (%s, %s)",
+                        (request.social_uid, allergy)
+                    )
+            else:
+                context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
+                context.set_details("user_uid 또는 social_uid 중 하나는 반드시 제공되어야 합니다.")
+                return allergy_pb2.Empty()
+            conn.commit()
+            return allergy_pb2.Empty()
+        except Exception as e:
+            conn.rollback()
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(f"DB 수정 오류: {e}")
+            return allergy_pb2.Empty()
+        finally:
+            cursor.close()
+            conn.close()
+
+def serve_grpc():
+    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+    allergy_pb2_grpc.add_AiServiceServicer_to_server(AiServiceServicer(), server)
+    server.add_insecure_port('[::]:6008')
+    server.start()
+    print("gRPC 서버가 6008번 포트에서 실행 중...")
+    server.wait_for_termination()
+
+# gRPC 서버는 데몬 스레드로 백그라운드 실행
+grpc_thread = threading.Thread(target=serve_grpc, daemon=True)
+grpc_thread.start()
+
+# __main__에서 둘 다 실행
+if __name__ == "__main__":
+    # FastAPI 앱 실행 (uvicorn)
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=9008)
 

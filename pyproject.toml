@@ -20,6 +20,8 @@ uvicorn = {extras = ["standard"], version = "^0.22.0"}
 mysql-connector-python = "^8.0"
 python-dotenv = "^1.0.0"
 openai = "^0.27.0"
+grpcio = "^1.62.0"
+grpcio-tools = "^1.62.0"
 
 [tool.poetry.dev-dependencies]
 # 테스트나 린팅 도구를 추가하고 싶다면 여기에 선언
